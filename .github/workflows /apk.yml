@@ -1,0 +1,129 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare web assets
+        run: |
+          mkdir -p www
+          cp -r index.html css js www/
+          if [ -d icons ]; then cp -r icons www/; fi
+
+      - name: Add Android platform
+        run: npx cap add android || echo "Platform already exists"
+
+      - name: Sync web assets
+        run: npx cap sync android
+
+      - name: Native alarm layer
+        run: |
+          PKG=android/app/src/main/java/io/kamishikii/novel
+          mkdir -p "$PKG"
+          cp native/*.java "$PKG"/
+          cp native/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 33/' android/variables.gradle
+
+      - name: Stable signing key
+        run: |
+          mkdir -p signing
+          if [ ! -f signing/dindin.jks ]; then
+            keytool -genkeypair -v -keystore signing/dindin.jks -alias dindin \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass dindin123 -keypass dindin123 \
+              -dname "CN=dindin, O=kamishikii, C=RU"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add signing/dindin.jks
+            git commit -m "add signing key"
+            git push origin HEAD
+          fi
+          cat >> android/app/build.gradle <<'EOF'
+
+          android {
+              signingConfigs {
+                  dindin {
+                      storeFile file("../../signing/dindin.jks")
+                      storePassword "dindin123"
+                      keyAlias "dindin"
+                      keyPassword "dindin123"
+                  }
+              }
+              buildTypes {
+                  debug { signingConfig signingConfigs.dindin }
+                  release { signingConfig signingConfigs.dindin; minifyEnabled false }
+              }
+          }
+          EOF
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+
+      - name: App icon
+        run: |
+          python3 -m pip install pillow
+          python3 - <<'EOF'
+          import os, shutil
+          from PIL import Image, ImageDraw
+
+          sizes = {'mdpi':48,'hdpi':72,'xhdpi':96,'xxhdpi':144,'xxxhdpi':192}
+          src = 'app-icon.png'
+          if os.path.exists(src):
+              im = Image.open(src).convert('RGBA')
+              w,h = im.size; s = min(w,h)
+              im = im.crop(((w-s)//2,(h-s)//2,(w+s)//2,(h+s)//2))
+          else:
+              im = Image.new('RGBA',(512,512),(169,194,179,255))
+              d = ImageDraw.Draw(im); white=(255,255,255,255)
+              d.ellipse((216,60,296,140), fill=white)
+              d.ellipse((116,110,396,390), fill=white)
+              d.rectangle((116,250,396,360), fill=white)
+              d.rectangle((86,350,426,395), fill=white)
+              d.ellipse((216,395,296,465), fill=white)
+
+          round_im = im.copy()
+          mask = Image.new('L', im.size, 0)
+          ImageDraw.Draw(mask).ellipse((0,0,im.size[0],im.size[1]), fill=255)
+          round_im.putalpha(mask)
+
+          base = 'android/app/src/main/res'
+          shutil.rmtree(os.path.join(base,'mipmap-anydpi-v26'), ignore_errors=True)
+          for dpi,size in sizes.items():
+              p = os.path.join(base, 'mipmap-'+dpi)
+              os.makedirs(p, exist_ok=True)
+              im.resize((size,size), Image.LANCZOS).save(os.path.join(p,'ic_launcher.png'))
+              round_im.resize((size,size), Image.LANCZOS).save(os.path.join(p,'ic_launcher_round.png'))
+          print('icons ok')
+          EOF
+
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dindin-apk
+          path: android/app/build/outputs/apk/novel/app-novel.apk
