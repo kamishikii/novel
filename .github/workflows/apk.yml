@@ -29,8 +29,8 @@ jobs:
       - name: Prepare web assets
         run: |
           mkdir -p www
-          cp -r index.html css js www/
-          if [ -d icons ]; then cp -r icons www/; fi
+          cp index.html www/
+          cp *.png www/
 
       - name: Add Android platform
         run: npx cap add android || echo "Platform already exists"
@@ -38,25 +38,17 @@ jobs:
       - name: Sync web assets
         run: npx cap sync android
 
-      - name: Native alarm layer
-        run: |
-          PKG=android/app/src/main/java/io/kamishikii/novel
-          mkdir -p "$PKG"
-          cp native/*.java "$PKG"/
-          cp native/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 33/' android/variables.gradle
-
       - name: Stable signing key
         run: |
           mkdir -p signing
-          if [ ! -f signing/dindin.jks ]; then
-            keytool -genkeypair -v -keystore signing/dindin.jks -alias dindin \
+          if [ ! -f signing/novel.jks ]; then
+            keytool -genkeypair -v -keystore signing/novel.jks -alias novel \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass dindin123 -keypass dindin123 \
-              -dname "CN=dindin, O=kamishikii, C=RU"
+              -storepass novel123 -keypass novel123 \
+              -dname "CN=novel, O=kamishikii, C=RU"
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add signing/dindin.jks
+            git add signing/novel.jks
             git commit -m "add signing key"
             git push origin HEAD
           fi
@@ -64,16 +56,16 @@ jobs:
 
           android {
               signingConfigs {
-                  dindin {
-                      storeFile file("../../signing/dindin.jks")
-                      storePassword "dindin123"
-                      keyAlias "dindin"
-                      keyPassword "dindin123"
+                  novel {
+                      storeFile file("../../signing/novel.jks")
+                      storePassword "novel123"
+                      keyAlias "novel"
+                      keyPassword "novel123"
                   }
               }
               buildTypes {
-                  debug { signingConfig signingConfigs.dindin }
-                  release { signingConfig signingConfigs.dindin; minifyEnabled false }
+                  debug { signingConfig signingConfigs.novel }
+                  release { signingConfig signingConfigs.novel; minifyEnabled false }
               }
           }
           EOF
@@ -125,5 +117,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: dindin-apk
-          path: android/app/build/outputs/apk/novel/app-novel.apk
+          name: novel-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
