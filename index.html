@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title></title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: url('./fon.png') no-repeat center center / cover;
+      position: relative;
+    }
+
+    .search {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80%;
+      max-width: 500px;
+      background: white;
+      border-radius: 22px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border: 1px solid #e0e0e0;
+    }
+
+    .search input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 16px;
+      color: #333;
+      padding: 0 8px;
+    }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    .lupa { background-image: url('./lupa.png'); margin-right: 8px; }
+    .krest { background-image: url('./krest.png'); margin-left: 8px; cursor: pointer; opacity: 0.6; }
+    .krest:hover { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="search">
+    <div class="icon lupa"></div>
+    <input type="text" autocomplete="off">
+    <div class="icon krest"></div>
+  </div>
+
+  <script>
+    document.querySelector('.krest').onclick = () => {
+      document.querySelector('input').value = '';
+    };
+  </script>
+</body>
+</html>
